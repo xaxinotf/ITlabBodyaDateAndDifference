@@ -1,11 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace TabularDatabaseDesktop
@@ -37,7 +32,12 @@ namespace TabularDatabaseDesktop
 
             try
             {
+                // Викликаємо метод різниці таблиць і зберігаємо результат
                 ResultTable = _database.Difference(tableName1, tableName2, resultTableName);
+
+                // Виводимо повідомлення про успіх
+                MessageBox.Show($"Таблиця '{ResultTable.Name}' успішно створена та збережена.");
+
                 DialogResult = DialogResult.OK;
                 Close();
             }
@@ -46,5 +46,6 @@ namespace TabularDatabaseDesktop
                 MessageBox.Show(ex.Message);
             }
         }
+
     }
 }

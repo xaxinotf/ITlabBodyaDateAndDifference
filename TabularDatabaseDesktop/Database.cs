@@ -53,29 +53,95 @@ namespace TabularDatabaseDesktop
 
         public Table Difference(string tableName1, string tableName2, string resultTableName)
         {
-            var table1 = GetTable(tableName1);
-            var table2 = GetTable(tableName2);
+            var table1 = Tables.FirstOrDefault(t => t.Name == tableName1);
+            var table2 = Tables.FirstOrDefault(t => t.Name == tableName2);
 
             if (table1 == null || table2 == null)
                 throw new Exception("Одна з таблиць не знайдена.");
 
-            if (!AreTableStructuresEqual(table1, table2))
-                throw new Exception("Таблиці мають різну структуру.");
+            if (table1.Fields.Count != table2.Fields.Count)
+                throw new Exception("Таблиці мають різну кількість полів.");
 
-            var resultTable = new Table(resultTableName)
+            for (int i = 0; i < table1.Fields.Count; i++)
             {
-                Fields = new List<Field>(table1.Fields)
-            };
+                if (table1.Fields[i].Name != table2.Fields[i].Name || table1.Fields[i].Type != table2.Fields[i].Type)
+                {
+                    throw new Exception($"Поля з індексом {i} не збігаються за назвою або типом.");
+                }
+            }
+
+            var resultTable = new Table(resultTableName);
+            foreach (var field in table1.Fields)
+            {
+                resultTable.AddField(new Field(field.Name, field.Type));
+            }
 
             foreach (var row1 in table1.Rows)
             {
-                bool existsInTable2 = table2.Rows.Any(row2 => RowsAreEqual(row1, row2));
-                if (!existsInTable2)
-                    resultTable.Rows.Add(row1);
+                bool found = table2.Rows.Any(row2 => AreRowsEqual(row1, row2, table1.Fields));
+                if (!found)
+                {
+                    resultTable.AddRow(row1);
+                }
             }
 
-            AddTable(resultTable);
+            Tables.Add(resultTable);
             return resultTable;
+        }
+
+
+
+        // Допоміжний метод для перевірки можливості конвертації типів
+        private bool CanConvertType(DataType type1, DataType type2)
+        {
+            // Дозволені конверсії: string <-> Date
+            if ((type1 == DataType.String && type2 == DataType.Date) || (type1 == DataType.Date && type2 == DataType.String))
+                return true;
+
+            return false; // В інших випадках конвертація неможлива
+        }
+        private bool AreRowsEqual(Row row1, Row row2, List<Field> fields)
+        {
+            for (int i = 0; i < fields.Count; i++)
+            {
+                var field = fields[i];
+                object value1 = row1.Values[field.Name];
+                object value2 = row2.Values[field.Name];
+
+                // Перевірка значення типу Date і порівняння дати
+                if (field.Type == DataType.Date)
+                {
+                    DateTime date1 = DateTime.Parse(value1.ToString());
+                    DateTime date2 = DateTime.Parse(value2.ToString());
+
+                    if (date1 != date2)
+                        return false;
+                }
+                // Перевірка значення типу DateInterval і порівняння інтервалів
+                else if (field.Type == DataType.DateInterval)
+                {
+                    var intervalParts1 = value1.ToString().Split('-');
+                    var intervalParts2 = value2.ToString().Split('-');
+
+                    if (intervalParts1.Length != 2 || intervalParts2.Length != 2)
+                        return false;
+
+                    DateTime start1 = DateTime.Parse(intervalParts1[0].Trim());
+                    DateTime end1 = DateTime.Parse(intervalParts1[1].Trim());
+                    DateTime start2 = DateTime.Parse(intervalParts2[0].Trim());
+                    DateTime end2 = DateTime.Parse(intervalParts2[1].Trim());
+
+                    if (start1 != start2 || end1 != end2)
+                        return false;
+                }
+                else
+                {
+                    // Загальне порівняння для інших типів
+                    if (!value1.Equals(value2))
+                        return false;
+                }
+            }
+            return true;
         }
 
         private bool AreTableStructuresEqual(Table table1, Table table2)
