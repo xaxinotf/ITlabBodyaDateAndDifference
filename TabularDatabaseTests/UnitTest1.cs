@@ -133,8 +133,13 @@ namespace TabularDatabaseTests
 
             var resultTable = database.Difference("Table2", "Table1", "ResultTableWithDateInterval");
 
-            Assert.AreEqual(1, resultTable.Rows.Count);
-            Assert.AreEqual("2023-07-01 - 2023-12-31", resultTable.Rows[0].Values["DateRange"]);
+            // Перевірка кількості рядків у результуючій таблиці
+            Assert.AreEqual(1, resultTable.Rows.Count, "Результуюча таблиця повинна містити лише один рядок.");
+
+            // Перевірка значення DateRange у результуючій таблиці
+            Assert.AreEqual("2023-07-01 - 2023-12-31", resultTable.Rows[0].Values["DateRange"], "DateRange має відповідати очікуваному значенню.");
         }
+
+
     }
 }

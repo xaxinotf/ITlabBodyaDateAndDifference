@@ -102,36 +102,43 @@ namespace TabularDatabaseDesktop
         }
         private bool AreRowsEqual(Row row1, Row row2, List<Field> fields)
         {
-            for (int i = 0; i < fields.Count; i++)
+            foreach (var field in fields)
             {
-                var field = fields[i];
-                object value1 = row1.Values[field.Name];
-                object value2 = row2.Values[field.Name];
+                if (!row1.Values.ContainsKey(field.Name) || !row2.Values.ContainsKey(field.Name))
+                    return false;
 
-                // Перевірка значення типу Date і порівняння дати
+                var value1 = row1.Values[field.Name];
+                var value2 = row2.Values[field.Name];
+
+                if (value1 == null || value2 == null)
+                {
+                    if (value1 != value2) // Один null, а інший ні
+                        return false;
+                    continue; // Обидва значення null
+                }
+
                 if (field.Type == DataType.Date)
                 {
-                    DateTime date1 = DateTime.Parse(value1.ToString());
-                    DateTime date2 = DateTime.Parse(value2.ToString());
-
-                    if (date1 != date2)
+                    if (!(value1 is DateTime dt1) || !(value2 is DateTime dt2))
+                        return false;
+                    if (dt1.Date != dt2.Date)
                         return false;
                 }
-                // Перевірка значення типу DateInterval і порівняння інтервалів
                 else if (field.Type == DataType.DateInterval)
                 {
-                    var intervalParts1 = value1.ToString().Split('-');
-                    var intervalParts2 = value2.ToString().Split('-');
+                    var intervalParts1 = value1.ToString().Split(new string[] { " - " }, StringSplitOptions.None);
+                    var intervalParts2 = value2.ToString().Split(new string[] { " - " }, StringSplitOptions.None);
 
                     if (intervalParts1.Length != 2 || intervalParts2.Length != 2)
                         return false;
 
-                    DateTime start1 = DateTime.Parse(intervalParts1[0].Trim());
-                    DateTime end1 = DateTime.Parse(intervalParts1[1].Trim());
-                    DateTime start2 = DateTime.Parse(intervalParts2[0].Trim());
-                    DateTime end2 = DateTime.Parse(intervalParts2[1].Trim());
+                    if (!DateTime.TryParse(intervalParts1[0].Trim(), out DateTime start1) ||
+                        !DateTime.TryParse(intervalParts1[1].Trim(), out DateTime end1) ||
+                        !DateTime.TryParse(intervalParts2[0].Trim(), out DateTime start2) ||
+                        !DateTime.TryParse(intervalParts2[1].Trim(), out DateTime end2))
+                        return false;
 
-                    if (start1 != start2 || end1 != end2)
+                    if (start1.Date != start2.Date || end1.Date != end2.Date)
                         return false;
                 }
                 else
@@ -143,6 +150,8 @@ namespace TabularDatabaseDesktop
             }
             return true;
         }
+
+
 
         private bool AreTableStructuresEqual(Table table1, Table table2)
         {

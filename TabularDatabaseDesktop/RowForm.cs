@@ -10,14 +10,12 @@ namespace TabularDatabaseDesktop
     {
         private Table _table;
         public Row Row { get; private set; }
-        private Dictionary<string, string> _placeholders;
 
         public RowForm(Table table, Row existingRow = null)
         {
             InitializeComponent();
             _table = table;
             Row = existingRow ?? new Row();
-            _placeholders = new Dictionary<string, string>();
             CreateControls();
         }
 
@@ -37,7 +35,6 @@ namespace TabularDatabaseDesktop
                 panelInputs.Controls.Add(label);
 
                 Control inputControl;
-                string placeholder = string.Empty;
 
                 switch (field.Type)
                 {
@@ -48,7 +45,6 @@ namespace TabularDatabaseDesktop
                             Width = 200,
                             Location = new System.Drawing.Point(180, yPosition)
                         };
-                        placeholder = "Введіть ціле число";
                         break;
                     case DataType.Real:
                         inputControl = new TextBox
@@ -57,7 +53,6 @@ namespace TabularDatabaseDesktop
                             Width = 200,
                             Location = new System.Drawing.Point(180, yPosition)
                         };
-                        placeholder = "Введіть дійсне число";
                         break;
                     case DataType.Char:
                         inputControl = new TextBox
@@ -67,7 +62,6 @@ namespace TabularDatabaseDesktop
                             Location = new System.Drawing.Point(180, yPosition),
                             MaxLength = 1
                         };
-                        placeholder = "Введіть символ";
                         break;
                     case DataType.String:
                         inputControl = new TextBox
@@ -76,7 +70,6 @@ namespace TabularDatabaseDesktop
                             Width = 200,
                             Location = new System.Drawing.Point(180, yPosition)
                         };
-                        placeholder = "Введіть текст";
                         break;
                     case DataType.Date:
                         inputControl = new DateTimePicker
@@ -88,14 +81,59 @@ namespace TabularDatabaseDesktop
                         };
                         break;
                     case DataType.DateInterval:
-                        inputControl = new TextBox
+                        // Початок дати
+                        Label startDateLabel = new Label
                         {
-                            Name = $"input_{field.Name}",
-                            Width = 200,
-                            Location = new System.Drawing.Point(180, yPosition)
+                            Text = $"{field.Name} Початок:",
+                            Location = new System.Drawing.Point(10, yPosition),
+                            AutoSize = true
                         };
-                        placeholder = "yyyy-MM-dd - yyyy-MM-dd";
-                        break;
+                        panelInputs.Controls.Add(startDateLabel);
+
+                        DateTimePicker startDatePicker = new DateTimePicker
+                        {
+                            Name = $"input_{field.Name}_Start",
+                            Width = 200,
+                            Location = new System.Drawing.Point(180, yPosition),
+                            Format = DateTimePickerFormat.Short
+                        };
+                        panelInputs.Controls.Add(startDatePicker);
+
+                        yPosition += 30;
+
+                        // Кінець дати
+                        Label endDateLabel = new Label
+                        {
+                            Text = $"{field.Name} Кінець:",
+                            Location = new System.Drawing.Point(10, yPosition),
+                            AutoSize = true
+                        };
+                        panelInputs.Controls.Add(endDateLabel);
+
+                        DateTimePicker endDatePicker = new DateTimePicker
+                        {
+                            Name = $"input_{field.Name}_End",
+                            Width = 200,
+                            Location = new System.Drawing.Point(180, yPosition),
+                            Format = DateTimePickerFormat.Short
+                        };
+                        panelInputs.Controls.Add(endDatePicker);
+
+                        // Якщо є існуюче значення
+                        if (Row.Values.ContainsKey(field.Name))
+                        {
+                            var interval = Row.Values[field.Name].ToString().Split(new string[] { " - " }, StringSplitOptions.None);
+                            if (interval.Length == 2)
+                            {
+                                if (DateTime.TryParse(interval[0], out DateTime startDate))
+                                    startDatePicker.Value = startDate;
+                                if (DateTime.TryParse(interval[1], out DateTime endDate))
+                                    endDatePicker.Value = endDate;
+                            }
+                        }
+
+                        yPosition += 30;
+                        continue; // Пропускаємо додавання контролів нижче
                     default:
                         inputControl = new TextBox
                         {
@@ -117,18 +155,6 @@ namespace TabularDatabaseDesktop
                         inputControl.Text = Row.Values[field.Name].ToString();
                     }
                 }
-                else if (inputControl is TextBox txt)
-                {
-                    txt.Text = placeholder;
-                    txt.ForeColor = Color.Gray;
-                    _placeholders.Add(txt.Name, placeholder);
-                }
-
-                if (inputControl is TextBox textBox)
-                {
-                    textBox.Enter += RemovePlaceholder;
-                    textBox.Leave += SetPlaceholder;
-                }
 
                 panelInputs.Controls.Add(inputControl);
                 yPosition += 30;
@@ -137,83 +163,75 @@ namespace TabularDatabaseDesktop
             panelInputs.Height = yPosition;
         }
 
-        private void SetPlaceholder(object sender, EventArgs e)
-        {
-            if (sender is TextBox textBox && string.IsNullOrWhiteSpace(textBox.Text))
-            {
-                if (_placeholders.TryGetValue(textBox.Name, out var placeholder))
-                {
-                    textBox.Text = placeholder;
-                    textBox.ForeColor = Color.Gray;
-                }
-            }
-        }
-
-        private void RemovePlaceholder(object sender, EventArgs e)
-        {
-            if (sender is TextBox textBox && _placeholders.ContainsKey(textBox.Name) && textBox.Text == _placeholders[textBox.Name])
-            {
-                textBox.Text = string.Empty;
-                textBox.ForeColor = Color.Black;
-            }
-        }
-
         private void btnSave_Click(object sender, EventArgs e)
         {
-            foreach (var field in _table.Fields)
+            try
             {
-                var control = panelInputs.Controls.Find($"input_{field.Name}", true).FirstOrDefault();
-                object value = null;
-
-                try
+                foreach (var field in _table.Fields)
                 {
+                    object value = null;
+
                     switch (field.Type)
                     {
                         case DataType.Integer:
-                            value = int.Parse(control.Text);
+                            var intControl = panelInputs.Controls.Find($"input_{field.Name}", true).FirstOrDefault() as TextBox;
+                            if (intControl == null)
+                                throw new Exception($"Поле '{field.Name}' не знайдено.");
+                            value = int.Parse(intControl.Text);
                             break;
                         case DataType.Real:
-                            value = double.Parse(control.Text);
+                            var realControl = panelInputs.Controls.Find($"input_{field.Name}", true).FirstOrDefault() as TextBox;
+                            if (realControl == null)
+                                throw new Exception($"Поле '{field.Name}' не знайдено.");
+                            value = double.Parse(realControl.Text);
                             break;
                         case DataType.Char:
-                            if (control.Text.Length != 1)
-                                throw new Exception("Значення має бути одним символом.");
-                            value = control.Text;
+                            var charControl = panelInputs.Controls.Find($"input_{field.Name}", true).FirstOrDefault() as TextBox;
+                            if (charControl == null)
+                                throw new Exception($"Поле '{field.Name}' не знайдено.");
+                            if (charControl.Text.Length != 1)
+                                throw new Exception($"Поле '{field.Name}' має містити один символ.");
+                            value = charControl.Text;
                             break;
                         case DataType.String:
-                            value = control.Text;
+                            var stringControl = panelInputs.Controls.Find($"input_{field.Name}", true).FirstOrDefault() as TextBox;
+                            if (stringControl == null)
+                                throw new Exception($"Поле '{field.Name}' не знайдено.");
+                            value = stringControl.Text;
                             break;
                         case DataType.Date:
-                            value = ((DateTimePicker)control).Value.ToString("yyyy-MM-dd");
+                            var dateControl = panelInputs.Controls.Find($"input_{field.Name}", true).FirstOrDefault() as DateTimePicker;
+                            if (dateControl == null)
+                                throw new Exception($"Поле '{field.Name}' не знайдено.");
+                            value = dateControl.Value.ToString("yyyy-MM-dd");
                             break;
                         case DataType.DateInterval:
-                            var intervalParts = control.Text.Split('-');
-                            if (intervalParts.Length != 2)
-                                throw new Exception("Інтервал дати має бути у форматі 'yyyy-MM-dd - yyyy-MM-dd'");
-                            DateTime.Parse(intervalParts[0].Trim());
-                            DateTime.Parse(intervalParts[1].Trim());
-                            value = control.Text;
+                            var startControl = panelInputs.Controls.Find($"input_{field.Name}_Start", true).FirstOrDefault() as DateTimePicker;
+                            var endControl = panelInputs.Controls.Find($"input_{field.Name}_End", true).FirstOrDefault() as DateTimePicker;
+
+                            if (startControl == null || endControl == null)
+                                throw new Exception($"Поля для '{field.Name}' не знайдені.");
+
+                            DateTime startDate = startControl.Value.Date;
+                            DateTime endDate = endControl.Value.Date;
+
+                            if (startDate > endDate)
+                                throw new Exception($"Початкова дата не може бути пізніше кінцевої для поля '{field.Name}'.");
+
+                            value = $"{startDate:yyyy-MM-dd} - {endDate:yyyy-MM-dd}";
                             break;
                     }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Поле '{field.Name}': {ex.Message}");
-                    return;
+
+                    Row.Values[field.Name] = value;
                 }
 
-                Row.Values[field.Name] = value;
-            }
-
-            try
-            {
                 _table.ValidateRow(Row);
                 DialogResult = DialogResult.OK;
                 Close();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                MessageBox.Show($"Помилка: {ex.Message}");
             }
         }
 
